@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: forest_fire_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-fireuser}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-firepass123}
