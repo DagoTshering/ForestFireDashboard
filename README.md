@@ -180,7 +180,6 @@ Total imported: 1761 records
 ### Step 7: Start the Backend Server
 
 ```bash
-create a .env file at the root folder and copy the credentials inside the .env.example into it
 cd server
 npm run dev && npm run start
 ```
