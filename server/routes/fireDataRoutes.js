@@ -10,4 +10,6 @@ router.get('/latest', fireDataController.getLatestFromAPI);
 
 router.get('/statistics', fireDataController.getStatistics);
 
+router.get('/hottest-month', fireDataController.getHottestMonth);
+
 module.exports = router;

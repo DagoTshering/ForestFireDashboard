@@ -32,15 +32,6 @@ export function isWithinBhutanRegion(lat, lon) {
   );
 }
 
-export function getFireIntensityColor(frp, confidence) {
-  const value = frp || 0;
-
-  if (value >= 60) return '#dc2626';
-  if (value >= 30) return '#f97316';
-  if (value >= 10) return '#eab308';
-  return '#22c55e';
-}
-
 export function getIntensityLabel(frp) {
   if (frp >= 60) return 'Extreme';
   if (frp >= 30) return 'High';

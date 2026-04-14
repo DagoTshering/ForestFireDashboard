@@ -56,17 +56,44 @@ function parseConfidence(confidence) {
 class FireDataController {
   async getFireData(req, res) {
     try {
-      const { days, start, end, source } = req.query;
+      const { date, days, start, end } = req.query;
       
       let whereClause = {};
       
-      if (start && end) {
+      if (date && days !== undefined && days !== null && days !== '') {
+        const daysInt = parseInt(days);
+        
+        if (daysInt === 0) {
+          // All time - no date filter
+        } else if (daysInt >= 1 && daysInt <= 31) {
+          const selectedDate = moment(date, 'YYYY-MM-DD');
+          
+          if (selectedDate.isAfter(moment(), 'day')) {
+            return res.status(400).json({
+              success: false,
+              error: 'Date cannot be in the future'
+            });
+          }
+          
+          const startDate = selectedDate.clone().subtract(daysInt - 1, 'days').format('YYYY-MM-DD');
+          const endDate = date;
+          
+          whereClause.acq_date = {
+            [Op.between]: [startDate, endDate]
+          };
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: 'Days must be between 0 and 31'
+          });
+        }
+      } else if (start && end) {
         whereClause.acq_date = {
           [Op.between]: [start, end]
         };
       } else if (days) {
         const daysInt = parseInt(days);
-        if (daysInt > 0 && daysInt <= 30) {
+        if (daysInt > 0 && daysInt <= 31) {
           const startDate = moment().subtract(daysInt, 'days').format('YYYY-MM-DD');
           const endDate = moment().format('YYYY-MM-DD');
           whereClause.acq_date = {
@@ -133,9 +160,9 @@ class FireDataController {
       const stats = await FireData.findAll({
         attributes: [
           'acq_date',
-          [FireData.sequelize.fn('COUNT', FireData.col('id')), 'count'],
-          [FireData.sequelize.fn('AVG', FireData.col('frp')), 'avg_frp'],
-          [FireData.sequelize.fn('MAX', FireData.col('frp')), 'max_frp']
+          [FireData.sequelize.fn('COUNT', FireData.sequelize.col('id')), 'count'],
+          [FireData.sequelize.fn('AVG', FireData.sequelize.col('frp')), 'avg_frp'],
+          [FireData.sequelize.fn('MAX', FireData.sequelize.col('frp')), 'max_frp']
         ],
         group: ['acq_date'],
         order: [['acq_date', 'DESC']],
@@ -151,6 +178,37 @@ class FireDataController {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch statistics',
+        message: error.message
+      });
+    }
+  }
+
+  async getHottestMonth(req, res) {
+    try {
+      const stats = await FireData.findAll({
+        attributes: [
+          [FireData.sequelize.fn('TO_CHAR', FireData.sequelize.col('acq_date'), 'YYYY-MM'), 'month'],
+          [FireData.sequelize.fn('COUNT', FireData.sequelize.col('id')), 'count']
+        ],
+        group: ['month'],
+        order: [[FireData.sequelize.literal('count'), 'DESC']],
+        limit: 1
+      });
+
+      if (stats.length === 0) {
+        return res.json({ success: true, month: null, count: 0 });
+      }
+
+      res.json({
+        success: true,
+        month: stats[0].dataValues.month,
+        count: parseInt(stats[0].dataValues.count)
+      });
+    } catch (error) {
+      console.error('Error fetching hottest month:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch hottest month',
         message: error.message
       });
     }
