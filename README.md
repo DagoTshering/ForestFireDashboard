@@ -254,6 +254,63 @@ curl http://localhost:3000/api/fire-data/statistics
 - **Fire Details Popup**: Click a marker to see date, time, location, brightness, FRP, confidence
 - **Bhutan Border**: Blue outline showing Bhutan boundaries with 10km buffer
 
+## How to Add New Historical Data
+
+To add new fire data to the database:
+
+### Step 1: Create a Date Folder
+
+Create a new folder in `server/Data/` with the date range as the folder name:
+
+```
+server/Data/
+├── 2024-03-29_2025-03-29/
+├── 2025-03-30_2025-12-30/
+└── 2026-01-01_2026-06-30/     <-- New folder
+```
+
+**Folder naming convention:** `YYYY-MM-DD_YYYY-MM-DD` (start date_end date)
+
+### Step 2: Place Shapefile Files
+
+Copy your NASA FIRMS shapefile files into the new folder:
+
+```
+server/Data/2026-01-01_2026-06-30/
+├── fire_archive_SV-C2_XXXXXX.shp
+├── fire_archive_SV-C2_XXXXXX.dbf
+├── fire_archive_SV-C2_XXXXXX.shx
+├── fire_archive_SV-C2_XXXXXX.prj
+└── fire_archive_SV-C2_XXXXXX.cpg
+```
+
+### Step 3: Run Import
+
+```bash
+cd server
+npm run import-shp
+```
+
+The script will:
+1. Automatically scan `server/Data/` for all subfolders
+2. Find all `fire_archive*.shp` files
+3. Import records from each file
+4. Skip duplicates (existing records are preserved)
+
+### Example: Adding 2026 Data
+
+```bash
+# 1. Create folder
+mkdir -p server/Data/2026-01-01_2026-04-14
+
+# 2. Place shapefiles in the folder
+# (copy files from NASA FIRMS download)
+
+# 3. Run import
+cd server
+npm run import-shp
+```
+
 ## Troubleshooting
 
 ### Database Connection Issues
