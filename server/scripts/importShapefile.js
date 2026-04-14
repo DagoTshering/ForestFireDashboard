@@ -1,11 +1,13 @@
 require('dotenv').config({ path: '../.env' });
 const shapefile = require('shapefile');
+const fs = require('fs');
+const path = require('path');
 const { sequelize, FireData } = require('../models/FireData');
 
-async function importShapefile() {
-  console.log('Starting VIIRS SHP data import...');
-  console.log(`Source: Data/fire_archive_SV-C2_739417.shp`);
+async function importAllShapefiles() {
+  console.log('Starting dynamic VIIRS SHP data import...');
   console.log(`Target: PostgreSQL via Sequelize`);
+  console.log('');
 
   try {
     await sequelize.authenticate();
@@ -14,55 +16,109 @@ async function importShapefile() {
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
 
-    const source = await shapefile.open(
-      'Data/fire_archive_SV-C2_739417.shp',
-      'Data/fire_archive_SV-C2_739417.dbf'
-    );
+    const dataDir = path.join(__dirname, '../Data');
+    const entries = fs.readdirSync(dataDir, { withFileTypes: true });
 
-    let count = 0;
-    let records = [];
+    const subdirs = entries
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+      .sort();
 
-    console.log('Reading shapefile...');
+    if (subdirs.length === 0) {
+      console.log('No data folders found in Data/');
+      console.log('Add folders with shapefiles to server/Data/ and run again.');
+      process.exit(0);
+    }
 
-    while (true) {
-      const result = await source.read();
-      if (result.done) break;
+    console.log(`Found ${subdirs.length} data folder(s):`);
+    subdirs.forEach(dir => console.log(`  - ${dir}`));
+    console.log('');
 
-      const props = result.value.properties;
+    let totalImported = 0;
+    let totalSkipped = 0;
 
-      const record = {
-        latitude: parseFloat(props.LATITUDE),
-        longitude: parseFloat(props.LONGITUDE),
-        brightness: props.BRIGHTNESS ? parseFloat(props.BRIGHTNESS) : null,
-        scan: props.SCAN ? parseFloat(props.SCAN) : null,
-        track: props.TRACK ? parseFloat(props.TRACK) : null,
-        acq_date: formatDate(props.ACQ_DATE),
-        acq_time: props.ACQ_TIME ? parseInt(props.ACQ_TIME) : null,
-        satellite: props.SATELLITE || null,
-        instrument: props.INSTRUMENT || null,
-        version: props.VERSION || null,
-        confidence: parseConfidence(props.CONFIDENCE),
-        frp: props.FRP ? parseFloat(props.FRP) : null,
-        fire_type: props.TYPE !== undefined ? String(props.TYPE) : null,
-        created_at: new Date()
-      };
+    for (const subdir of subdirs) {
+      const subdirPath = path.join(dataDir, subdir);
+      const files = fs.readdirSync(subdirPath);
 
-      records.push(record);
-      count++;
+      const archiveFiles = files.filter(f => f.startsWith('fire_archive') && f.endsWith('.shp'));
 
-      if (count % 100 === 0) {
-        console.log(`Processed ${count} records...`);
+      if (archiveFiles.length === 0) {
+        console.log(`[${subdir}] No archive shapefile found, skipping.`);
+        continue;
+      }
+
+      for (const archiveFile of archiveFiles) {
+        const baseName = archiveFile.replace('.shp', '');
+        const shpPath = path.join(subdirPath, archiveFile);
+        const dbfPath = path.join(subdirPath, baseName + '.dbf');
+
+        if (!fs.existsSync(dbfPath)) {
+          console.log(`[${subdir}] DBF file not found for ${archiveFile}, skipping.`);
+          continue;
+        }
+
+        console.log(`[${subdir}] Importing ${archiveFile}...`);
+
+        const source = await shapefile.open(shpPath, dbfPath);
+
+        let count = 0;
+        let records = [];
+
+        while (true) {
+          const result = await source.read();
+          if (result.done) break;
+
+          const props = result.value.properties;
+
+          const record = {
+            latitude: parseFloat(props.LATITUDE),
+            longitude: parseFloat(props.LONGITUDE),
+            brightness: props.BRIGHTNESS ? parseFloat(props.BRIGHTNESS) : null,
+            scan: props.SCAN ? parseFloat(props.SCAN) : null,
+            track: props.TRACK ? parseFloat(props.TRACK) : null,
+            acq_date: formatDate(props.ACQ_DATE),
+            acq_time: props.ACQ_TIME ? parseInt(props.ACQ_TIME) : null,
+            satellite: props.SATELLITE || null,
+            instrument: props.INSTRUMENT || null,
+            version: props.VERSION || null,
+            confidence: parseConfidence(props.CONFIDENCE),
+            frp: props.FRP ? parseFloat(props.FRP) : null,
+            fire_type: props.TYPE !== undefined ? String(props.TYPE) : null,
+            created_at: new Date()
+          };
+
+          records.push(record);
+          count++;
+
+          if (count % 500 === 0) {
+            console.log(`  Processed ${count} records...`);
+          }
+        }
+
+        console.log(`  Total records: ${count}`);
+
+        try {
+          const saved = await FireData.bulkCreate(records, {
+            ignoreDuplicates: true
+          });
+          console.log(`  Imported: ${saved.length} records`);
+          totalImported += saved.length;
+          totalSkipped += count - saved.length;
+        } catch (error) {
+          if (error.name === 'SequelizeUniqueConstraintError') {
+            console.log(`  Some duplicates skipped`);
+          } else {
+            throw error;
+          }
+        }
       }
     }
 
-    console.log(`Total records read: ${count}`);
-
-    console.log('Inserting records into database...');
-    const saved = await FireData.bulkCreate(records, {
-      ignoreDuplicates: true
-    });
-
-    console.log(`Successfully imported ${saved.length} records`);
+    console.log('');
+    console.log('=== Import Complete ===');
+    console.log(`Total imported: ${totalImported} records`);
+    console.log(`Total skipped (duplicates): ${totalSkipped} records`);
 
     const total = await FireData.count();
     console.log(`Total records in database: ${total}`);
@@ -102,4 +158,4 @@ function parseConfidence(confidence) {
   return confMap[confidence.toLowerCase()] || 50;
 }
 
-importShapefile();
+importAllShapefiles();

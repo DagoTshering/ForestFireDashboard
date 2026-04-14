@@ -123,15 +123,35 @@ docker ps
 
 ### 4. Import Historical Fire Data
 
-Place your NASA FIRMS shapefile in `server/Data/` directory. The file should be named:
-- `fire_archive_SV-C2_739417.shp` (and associated .dbf, .shx, .prj, .cpg files)
+Create folders in `server/Data/` with date range names. Place shapefile files inside each folder:
+
+```
+server/Data/
+├── 2024-03-29_2025-03-29/
+│   ├── fire_archive_SV-C2_739418.shp
+│   ├── fire_archive_SV-C2_739418.dbf
+│   ├── fire_archive_SV-C2_739418.shx
+│   ├── fire_archive_SV-C2_739418.prj
+│   └── fire_archive_SV-C2_739418.cpg
+└── 2025-03-30_2025-12-30/
+    ├── fire_archive_SV-C2_739417.shp
+    └── ...
+```
+
+**Folder naming convention:** Use date range as folder name (e.g., `2024-03-29_2025-03-29`)
 
 ```bash
 cd server
 
-# Import historical data from shapefile
+# Import all shapefiles from all date folders
 npm run import-shp
 ```
+
+The script automatically:
+- Scans `server/Data/` for subfolders
+- Finds all `fire_archive*.shp` files
+- Imports records from each file
+- Handles duplicates (skips existing records)
 
 ### 5. Start the Backend Server
 
