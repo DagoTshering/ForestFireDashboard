@@ -35,10 +35,5 @@ build
 # Test coverage
 coverage/
 
-# Shapefile data (user should provide their own)
-server/Data/**/*.shp
-server/Data/**/*.dbf
-server/Data/**/*.prj
-server/Data/**/*.shx
-server/Data/**/*.cpg
+# Shapefile Readme files
 server/Data/**/Readme.txt
