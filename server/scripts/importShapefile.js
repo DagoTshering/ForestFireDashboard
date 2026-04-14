@@ -4,6 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { sequelize, FireData } = require('../models/FireData');
 
+function buildKey(record) {
+  return `${record.latitude},${record.longitude},${record.acq_date},${record.acq_time}`;
+}
+
 async function importAllShapefiles() {
   console.log('Starting dynamic VIIRS SHP data import...');
   console.log(`Target: PostgreSQL via Sequelize`);
@@ -15,6 +19,15 @@ async function importAllShapefiles() {
 
     await sequelize.sync({ alter: true });
     console.log('Database synchronized.');
+
+    console.log('Building existing records cache for duplicate detection...');
+    const existingRecords = await FireData.findAll({
+      attributes: ['latitude', 'longitude', 'acq_date', 'acq_time'],
+      raw: true
+    });
+    const existingKeys = new Set(existingRecords.map(r => buildKey(r)));
+    console.log(`  Cached ${existingKeys.size} existing record keys.`);
+    console.log('');
 
     const dataDir = path.join(__dirname, '../Data');
     const entries = fs.readdirSync(dataDir, { withFileTypes: true });
@@ -64,6 +77,7 @@ async function importAllShapefiles() {
 
         let count = 0;
         let records = [];
+        let duplicates = 0;
 
         while (true) {
           const result = await source.read();
@@ -88,30 +102,28 @@ async function importAllShapefiles() {
             created_at: new Date()
           };
 
-          records.push(record);
+          const key = buildKey(record);
+          if (existingKeys.has(key)) {
+            duplicates++;
+          } else {
+            records.push(record);
+            existingKeys.add(key);
+          }
           count++;
 
           if (count % 500 === 0) {
-            console.log(`  Processed ${count} records...`);
+            console.log(`  Processed ${count} records (${duplicates} duplicates found)...`);
           }
         }
 
-        console.log(`  Total records: ${count}`);
+        console.log(`  Total records: ${count}, Duplicates: ${duplicates}, New: ${records.length}`);
 
-        try {
-          const saved = await FireData.bulkCreate(records, {
-            ignoreDuplicates: true
-          });
-          console.log(`  Imported: ${saved.length} records`);
-          totalImported += saved.length;
-          totalSkipped += count - saved.length;
-        } catch (error) {
-          if (error.name === 'SequelizeUniqueConstraintError') {
-            console.log(`  Some duplicates skipped`);
-          } else {
-            throw error;
-          }
+        if (records.length > 0) {
+          await FireData.bulkCreate(records);
+          console.log(`  Imported: ${records.length} records`);
+          totalImported += records.length;
         }
+        totalSkipped += duplicates;
       }
     }
 
