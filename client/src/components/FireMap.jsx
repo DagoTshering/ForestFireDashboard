@@ -14,9 +14,10 @@ import GeoJSON from 'ol/format/GeoJSON';
 import { BHUTAN_BOUNDS } from '../utils/constants';
 
 const DZONGKHAG_DATA_URL = '/data/dzongkhags.geojson';
+const BHUTAN_BOUNDARY_DATA_URL = '/data/bhutan-boundary.geojson';
 
 const defaultStyle = new Style({
-  stroke: new Stroke({ color: '#3b82f6', width: 1.5 }),
+  stroke: new Stroke({ color: 'rgba(55, 65, 81, 0.35)', width: 1 }),
   fill: new Fill({ color: 'rgba(59, 130, 246, 0.05)' }),
 });
 
@@ -24,6 +25,16 @@ const highlightedStyle = new Style({
   stroke: new Stroke({ color: '#e94560', width: 3 }),
   fill: new Fill({ color: 'rgba(233, 69, 96, 0.15)' }),
 });
+
+const bhutanBoundaryStyle = [
+  // White halo hides the underlying basemap border so our boundary is dominant.
+  new Style({
+    stroke: new Stroke({ color: 'rgba(255, 255, 255, 0.92)', width: 6 }),
+  }),
+  new Style({
+    stroke: new Stroke({ color: '#2563eb', width: 3 }),
+  }),
+];
 
 const bhutanCenter = [
   (BHUTAN_BOUNDS.minLon + BHUTAN_BOUNDS.maxLon) / 2,
@@ -41,11 +52,16 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
 
     const vectorSource = new VectorSource();
     const dzongkhagSource = new VectorSource();
+    const bhutanBoundarySource = new VectorSource();
 
     const vectorLayer = new VectorLayer({ source: vectorSource });
     const dzongkhagLayer = new VectorLayer({
       source: dzongkhagSource,
       style: defaultStyle,
+    });
+    const bhutanBoundaryLayer = new VectorLayer({
+      source: bhutanBoundarySource,
+      style: bhutanBoundaryStyle,
     });
 
     const map = new Map({
@@ -53,6 +69,7 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
       layers: [
         new TileLayer({ source: new OSM() }),
         dzongkhagLayer,
+        bhutanBoundaryLayer,
         vectorLayer,
       ],
       view: new View({
@@ -115,17 +132,33 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
       }
     });
 
-    mapInstanceRef.current = { map, vectorSource, vectorLayer, dzongkhagLayer, dzongkhagSource };
+    mapInstanceRef.current = {
+      map,
+      vectorSource,
+      vectorLayer,
+      dzongkhagLayer,
+      dzongkhagSource,
+      bhutanBoundaryLayer,
+      bhutanBoundarySource,
+    };
 
-    fetch(DZONGKHAG_DATA_URL)
-      .then(res => res.json())
-      .then(data => {
-        const parser = new GeoJSON();
-        const features = parser.readFeatures(data, {
+    const parser = new GeoJSON();
+    Promise.all([
+      fetch(DZONGKHAG_DATA_URL).then(res => res.json()),
+      fetch(BHUTAN_BOUNDARY_DATA_URL).then(res => res.json()),
+    ])
+      .then(([dzongkhagData, bhutanBoundaryData]) => {
+        const dzongkhagFeatures = parser.readFeatures(dzongkhagData, {
           dataProjection: 'EPSG:4326',
           featureProjection: 'EPSG:3857',
         });
-        dzongkhagSource.addFeatures(features);
+        dzongkhagSource.addFeatures(dzongkhagFeatures);
+
+        const boundaryFeatures = parser.readFeatures(bhutanBoundaryData, {
+          dataProjection: 'EPSG:4326',
+          featureProjection: 'EPSG:3857',
+        });
+        bhutanBoundarySource.addFeatures(boundaryFeatures);
       })
       .catch(err => console.error('Failed to load dzongkhag data:', err));
 
