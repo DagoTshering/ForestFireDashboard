@@ -7,13 +7,30 @@ import OSM from 'ol/source/OSM';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
-import Polygon from 'ol/geom/Polygon';
 import { fromLonLat } from 'ol/proj';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import Overlay from 'ol/Overlay';
+import GeoJSON from 'ol/format/GeoJSON';
 import { BHUTAN_BOUNDS } from '../utils/constants';
 
-function FireMap({ fireData }) {
+const DZONGKHAG_DATA_URL = '/data/dzongkhags.geojson';
+
+const defaultStyle = new Style({
+  stroke: new Stroke({ color: '#3b82f6', width: 1.5 }),
+  fill: new Fill({ color: 'rgba(59, 130, 246, 0.05)' }),
+});
+
+const highlightedStyle = new Style({
+  stroke: new Stroke({ color: '#e94560', width: 3 }),
+  fill: new Fill({ color: 'rgba(233, 69, 96, 0.15)' }),
+});
+
+const bhutanCenter = [
+  (BHUTAN_BOUNDS.minLon + BHUTAN_BOUNDS.maxLon) / 2,
+  (BHUTAN_BOUNDS.minLat + BHUTAN_BOUNDS.maxLat) / 2,
+];
+
+function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const popupRef = useRef(null);
@@ -22,35 +39,20 @@ function FireMap({ fireData }) {
   useEffect(() => {
     if (mapInstanceRef.current) return;
 
-    const bhutanCenter = [
-      (BHUTAN_BOUNDS.minLon + BHUTAN_BOUNDS.maxLon) / 2,
-      (BHUTAN_BOUNDS.minLat + BHUTAN_BOUNDS.maxLat) / 2,
-    ];
+    const vectorSource = new VectorSource();
+    const dzongkhagSource = new VectorSource();
 
-    const bhutanPolygon = new Polygon([[
-      [BHUTAN_BOUNDS.minLon, BHUTAN_BOUNDS.minLat],
-      [BHUTAN_BOUNDS.maxLon, BHUTAN_BOUNDS.minLat],
-      [BHUTAN_BOUNDS.maxLon, BHUTAN_BOUNDS.maxLat],
-      [BHUTAN_BOUNDS.minLon, BHUTAN_BOUNDS.maxLat],
-      [BHUTAN_BOUNDS.minLon, BHUTAN_BOUNDS.minLat],
-    ]]);
-
-    const bhutanFeature = new Feature({
-      geometry: bhutanPolygon,
-      name: 'Bhutan Border',
-    });
-    bhutanFeature.setStyle(new Style({
-      stroke: new Stroke({ color: '#3b82f6', width: 2 }),
-      fill: new Fill({ color: 'rgba(59, 130, 246, 0.05)' }),
-    }));
-
-    const vectorSource = new VectorSource({ features: [bhutanFeature] });
     const vectorLayer = new VectorLayer({ source: vectorSource });
+    const dzongkhagLayer = new VectorLayer({
+      source: dzongkhagSource,
+      style: defaultStyle,
+    });
 
     const map = new Map({
       target: mapRef.current,
       layers: [
         new TileLayer({ source: new OSM() }),
+        dzongkhagLayer,
         vectorLayer,
       ],
       view: new View({
@@ -68,7 +70,7 @@ function FireMap({ fireData }) {
 
     map.on('pointermove', (evt) => {
       const feature = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
-      
+
       if (feature && feature.get('fireData')) {
         const fire = feature.get('fireData');
         const confidence = fire.confidence || 50;
@@ -99,7 +101,33 @@ function FireMap({ fireData }) {
       }
     });
 
-    mapInstanceRef.current = { map, vectorSource, vectorLayer };
+    map.on('click', (evt) => {
+      const feature = map.forEachFeatureAtPixel(evt.pixel, (f) => {
+        if (f.get('DZONGKHA')) return f;
+        return null;
+      });
+
+      if (feature) {
+        const dzongkhagName = feature.get('DZONGKHA');
+        if (onDzongkhagClick) {
+          onDzongkhagClick(dzongkhagName);
+        }
+      }
+    });
+
+    mapInstanceRef.current = { map, vectorSource, vectorLayer, dzongkhagLayer, dzongkhagSource };
+
+    fetch(DZONGKHAG_DATA_URL)
+      .then(res => res.json())
+      .then(data => {
+        const parser = new GeoJSON();
+        const features = parser.readFeatures(data, {
+          dataProjection: 'EPSG:4326',
+          featureProjection: 'EPSG:3857',
+        });
+        dzongkhagSource.addFeatures(features);
+      })
+      .catch(err => console.error('Failed to load dzongkhag data:', err));
 
     return () => {
       if (mapInstanceRef.current) {
@@ -108,6 +136,40 @@ function FireMap({ fireData }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const { dzongkhagSource, map } = mapInstanceRef.current;
+    const features = dzongkhagSource.getFeatures();
+
+    features.forEach((feature) => {
+      const name = feature.get('DZONGKHA');
+      if (selectedDzongkhag && name === selectedDzongkhag) {
+        feature.setStyle(highlightedStyle);
+      } else {
+        feature.setStyle(defaultStyle);
+      }
+    });
+
+    if (selectedDzongkhag) {
+      const selectedFeature = features.find(f => f.get('DZONGKHA') === selectedDzongkhag);
+      if (selectedFeature) {
+        const extent = selectedFeature.getGeometry().getExtent();
+        map.getView().fit(extent, {
+          padding: [50, 50, 50, 50],
+          maxZoom: 12,
+          duration: 500,
+        });
+      }
+    } else {
+      map.getView().animate({
+        center: fromLonLat(bhutanCenter),
+        zoom: 8,
+        duration: 500,
+      });
+    }
+  }, [selectedDzongkhag]);
 
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -121,11 +183,9 @@ function FireMap({ fireData }) {
         fireData: fire,
       });
 
-      const radius = 3;
-
       feature.setStyle(new Style({
         image: new CircleStyle({
-          radius: radius,
+          radius: 3,
           fill: new Fill({ color: '#dc2626' }),
           stroke: new Stroke({ color: '#dc2626', width: 1 }),
         }),

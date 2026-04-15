@@ -4,7 +4,14 @@ import FireMap from './components/FireMap';
 import { fetchFireData, fetchHottestMonth } from './services/api';
 import { isWithinBhutanRegion } from './utils/constants';
 import { DatePicker } from './components/ui/date-picker';
+import { DzongkhagSelector } from './components/ui/dzongkhag-selector';
 import './App.css';
+
+const DZONGKHAGS = [
+  'Bumthang', 'Chhukha', 'Dagana', 'Gasa', 'Haa', 'Lhuentse', 'Monggar',
+  'Paro', 'Pemagatshel', 'Punakha', 'Samdrupjongkhar', 'Samtse', 'Sarpang',
+  'Thimphu', 'Trashigang', 'Trongsa', 'Tsirang', 'Wangduephodrang', 'Yangtse', 'Zhemgang'
+];
 
 function formatHottestMonth(monthStr, count) {
   if (!monthStr) return null;
@@ -19,6 +26,7 @@ function App() {
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [days, setDays] = useState(0);
+  const [selectedDzongkhag, setSelectedDzongkhag] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [stats, setStats] = useState({ total: 0 });
   const [hottestMonth, setHottestMonth] = useState(null);
@@ -109,6 +117,14 @@ function App() {
             ))}
           </select>
         </div>
+        <div className="control-group">
+          <label htmlFor="dzongkhag">Dzongkhag:</label>
+          <DzongkhagSelector
+            dzongkhags={DZONGKHAGS}
+            selected={selectedDzongkhag}
+            onSelect={setSelectedDzongkhag}
+          />
+        </div>
         {lastUpdated && (
           <span className="last-updated">
             Last updated: {lastUpdated.toLocaleTimeString()}
@@ -122,7 +138,11 @@ function App() {
         {loading && fireData.length === 0 ? (
           <div className="loading">Loading fire data...</div>
         ) : (
-          <FireMap fireData={fireData} />
+          <FireMap
+            fireData={fireData}
+            selectedDzongkhag={selectedDzongkhag}
+            onDzongkhagClick={setSelectedDzongkhag}
+          />
         )}
       </main>
 
