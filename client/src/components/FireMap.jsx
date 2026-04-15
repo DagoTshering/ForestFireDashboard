@@ -234,6 +234,33 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
   return (
     <div className="map-container">
       <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
+      <div className="legend" aria-label="Map legend">
+        <h4>Legend</h4>
+        <div className="legend-item">
+          <span className="legend-color" style={{ backgroundColor: '#dc2626' }} />
+          <span>Fire detection source: N (VIIRS)</span>
+        </div>
+        <div className="legend-item">
+          <span
+            className="legend-color"
+            style={{
+              backgroundColor: 'rgba(37, 99, 235, 0.2)',
+              border: '2px solid #2563eb',
+            }}
+          />
+          <span>Bhutan international boundary</span>
+        </div>
+        <div className="legend-item">
+          <span
+            className="legend-color"
+            style={{
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(55, 65, 81, 0.8)',
+            }}
+          />
+          <span>Dzongkhag boundary</span>
+        </div>
+      </div>
       <div ref={popupRef} className="ol-popup" style={{ display: 'none' }}>
         {popupContent && (
           <div className="fire-popup">
