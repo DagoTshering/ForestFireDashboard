@@ -4,6 +4,7 @@ import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
 import VectorLayer from 'ol/layer/Vector';
 import OSM from 'ol/source/OSM';
+import XYZ from 'ol/source/XYZ';
 import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
@@ -41,7 +42,7 @@ const bhutanCenter = [
   (BHUTAN_BOUNDS.minLat + BHUTAN_BOUNDS.maxLat) / 2,
 ];
 
-function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
+function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick, basemap }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const popupRef = useRef(null);
@@ -55,6 +56,14 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
     const bhutanBoundarySource = new VectorSource();
 
     const vectorLayer = new VectorLayer({ source: vectorSource });
+    const streetLayer = new TileLayer({ source: new OSM(), visible: true });
+    const satelliteLayer = new TileLayer({
+      source: new XYZ({
+        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attributions: 'Tiles &copy; Esri',
+      }),
+      visible: false,
+    });
     const dzongkhagLayer = new VectorLayer({
       source: dzongkhagSource,
       style: defaultStyle,
@@ -67,7 +76,8 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
     const map = new Map({
       target: mapRef.current,
       layers: [
-        new TileLayer({ source: new OSM() }),
+        streetLayer,
+        satelliteLayer,
         dzongkhagLayer,
         bhutanBoundaryLayer,
         vectorLayer,
@@ -134,6 +144,8 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
 
     mapInstanceRef.current = {
       map,
+      streetLayer,
+      satelliteLayer,
       vectorSource,
       vectorLayer,
       dzongkhagLayer,
@@ -207,6 +219,15 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
+    const { streetLayer, satelliteLayer } = mapInstanceRef.current;
+    const showSatellite = basemap === 'satellite';
+    streetLayer.setVisible(!showSatellite);
+    satelliteLayer.setVisible(showSatellite);
+  }, [basemap]);
+
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
     const { vectorSource } = mapInstanceRef.current;
     const features = vectorSource.getFeatures().filter(f => !f.get('fireData'));
 
@@ -236,6 +257,9 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick }) {
       <div ref={mapRef} style={{ height: '100%', width: '100%' }} />
       <div className="legend" aria-label="Map legend">
         <h4>Legend</h4>
+        <div className="legend-item">
+          <span>Active map: <strong>{basemap === 'satellite' ? 'Satellite' : 'Current'}</strong></span>
+        </div>
         <div className="legend-item">
           <span className="legend-color" style={{ backgroundColor: '#dc2626' }} />
           <span>Fire detection source: N (VIIRS)</span>

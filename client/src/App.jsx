@@ -27,6 +27,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [days, setDays] = useState(0);
   const [selectedDzongkhag, setSelectedDzongkhag] = useState(null);
+  const [basemap, setBasemap] = useState('street');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [stats, setStats] = useState({ total: 0 });
   const [hottestMonth, setHottestMonth] = useState(null);
@@ -125,6 +126,17 @@ function App() {
             onSelect={setSelectedDzongkhag}
           />
         </div>
+        <div className="control-group">
+          <label htmlFor="basemap">Map:</label>
+          <select
+            id="basemap"
+            value={basemap}
+            onChange={(e) => setBasemap(e.target.value)}
+          >
+            <option value="street">Current</option>
+            <option value="satellite">Satellite</option>
+          </select>
+        </div>
         {lastUpdated && (
           <span className="last-updated">
             Last updated: {lastUpdated.toLocaleTimeString()}
@@ -142,6 +154,7 @@ function App() {
             fireData={fireData}
             selectedDzongkhag={selectedDzongkhag}
             onDzongkhagClick={setSelectedDzongkhag}
+            basemap={basemap}
           />
         )}
       </main>
