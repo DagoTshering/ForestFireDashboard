@@ -62,6 +62,11 @@ const FireData = sequelize.define('FireData', {
     type: DataTypes.STRING(10),
     allowNull: true
   },
+  data_source: {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    defaultValue: 'VIIRS_N'
+  },
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
@@ -73,7 +78,8 @@ const FireData = sequelize.define('FireData', {
     { fields: ['acq_date'] },
     { fields: ['latitude', 'longitude'] },
     { fields: ['fire_type'] },
-    { unique: true, fields: ['latitude', 'longitude', 'acq_date', 'acq_time'] }
+    { fields: ['data_source'] },
+    { unique: true, fields: ['latitude', 'longitude', 'acq_date', 'acq_time', 'data_source'] }
   ]
 });
 

@@ -12,4 +12,6 @@ router.get('/statistics', fireDataController.getStatistics);
 
 router.get('/hottest-month', fireDataController.getHottestMonth);
 
+router.get('/sources', fireDataController.getSourceCounts);
+
 module.exports = router;

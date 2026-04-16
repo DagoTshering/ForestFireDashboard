@@ -1,6 +1,6 @@
 const API_BASE_URL = 'http://localhost:3000';
 
-export async function fetchFireData(date = null, days = 0) {
+export async function fetchFireData(date = null, days = 0, source = 'ALL') {
   let url = `${API_BASE_URL}/api/fire-data`;
   const params = [];
   
@@ -9,6 +9,9 @@ export async function fetchFireData(date = null, days = 0) {
   }
   if (days !== null && days !== undefined && days !== '') {
     params.push(`days=${days}`);
+  }
+  if (source) {
+    params.push(`source=${encodeURIComponent(source)}`);
   }
   
   if (params.length > 0) {
@@ -26,6 +29,14 @@ export async function fetchHottestMonth() {
   const response = await fetch(`${API_BASE_URL}/api/fire-data/hottest-month`);
   if (!response.ok) {
     throw new Error('Failed to fetch hottest month');
+  }
+  return response.json();
+}
+
+export async function fetchSourceCounts() {
+  const response = await fetch(`${API_BASE_URL}/api/fire-data/sources`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch source counts');
   }
   return response.json();
 }

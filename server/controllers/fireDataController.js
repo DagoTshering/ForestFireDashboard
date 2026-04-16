@@ -7,6 +7,7 @@ async function saveFireData(nasaData) {
   const records = nasaData.map(fire => {
     const brightness = fire.brightness || fire.bright_ti4 || null;
     const confidence = parseConfidence(fire.confidence);
+    const source = deriveDataSource(fire);
     
     return {
       latitude: parseFloat(fire.latitude),
@@ -22,6 +23,7 @@ async function saveFireData(nasaData) {
       confidence: confidence,
       frp: fire.frp ? parseFloat(fire.frp) : null,
       fire_type: fire.type || fire.daynight || null,
+      data_source: source,
       created_at: new Date()
     };
   });
@@ -40,6 +42,22 @@ async function saveFireData(nasaData) {
   }
 }
 
+function deriveDataSource(fire) {
+  const source = (fire.source || fire.data_source || '').toString().toUpperCase();
+  const instrument = (fire.instrument || '').toString().toUpperCase();
+  const satellite = (fire.satellite || '').toString().toUpperCase();
+
+  if (source.includes('MODIS') || instrument === 'MODIS') {
+    return 'MODIS';
+  }
+
+  if (source.includes('J1') || source.includes('NOAA20') || satellite === 'N20') {
+    return 'VIIRS_J1';
+  }
+
+  return 'VIIRS_N';
+}
+
 function parseConfidence(confidence) {
   if (!confidence) return null;
   if (typeof confidence === 'number') return confidence;
@@ -56,7 +74,7 @@ function parseConfidence(confidence) {
 class FireDataController {
   async getFireData(req, res) {
     try {
-      const { date, days, start, end } = req.query;
+      const { date, days, start, end, source } = req.query;
       
       let whereClause = {};
       
@@ -99,6 +117,26 @@ class FireDataController {
           whereClause.acq_date = {
             [Op.between]: [startDate, endDate]
           };
+        }
+      }
+
+      if (source && source.toUpperCase() !== 'ALL') {
+        const normalizedSource = source.toUpperCase();
+        if (normalizedSource === 'VIIRS') {
+          whereClause.data_source = {
+            [Op.in]: ['VIIRS_N', 'VIIRS_J1']
+          };
+        } else if (
+          normalizedSource === 'VIIRS_N' ||
+          normalizedSource === 'VIIRS_J1' ||
+          normalizedSource === 'MODIS'
+        ) {
+          whereClause.data_source = normalizedSource;
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: 'Source must be one of ALL, VIIRS, VIIRS_N, VIIRS_J1, MODIS'
+          });
         }
       }
 
@@ -209,6 +247,36 @@ class FireDataController {
       res.status(500).json({
         success: false,
         error: 'Failed to fetch hottest month',
+        message: error.message
+      });
+    }
+  }
+
+  async getSourceCounts(req, res) {
+    try {
+      const rows = await FireData.findAll({
+        attributes: [
+          'data_source',
+          [FireData.sequelize.fn('COUNT', FireData.sequelize.col('id')), 'count']
+        ],
+        group: ['data_source'],
+        raw: true
+      });
+
+      const counts = rows.reduce((acc, row) => {
+        acc[row.data_source] = parseInt(row.count, 10);
+        return acc;
+      }, { VIIRS_N: 0, VIIRS_J1: 0, MODIS: 0 });
+
+      res.json({
+        success: true,
+        data: counts
+      });
+    } catch (error) {
+      console.error('Error fetching source counts:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch source counts',
         message: error.message
       });
     }

@@ -42,7 +42,7 @@ const bhutanCenter = [
   (BHUTAN_BOUNDS.minLat + BHUTAN_BOUNDS.maxLat) / 2,
 ];
 
-function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick, basemap }) {
+function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick, basemap, selectedSource }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const popupRef = useRef(null);
@@ -259,6 +259,11 @@ function FireMap({ fireData, selectedDzongkhag, onDzongkhagClick, basemap }) {
         <h4>Legend</h4>
         <div className="legend-item">
           <span>Active map: <strong>{basemap === 'satellite' ? 'Satellite' : 'Current'}</strong></span>
+        </div>
+        <div className="legend-item">
+          <span>
+            Active source: <strong>{selectedSource === 'MODIS' ? 'MODIS' : selectedSource === 'VIIRS_J1' ? 'J1 VIIRS C2' : selectedSource === 'ALL' ? 'All Sources' : 'N (VIIRS)'}</strong>
+          </span>
         </div>
         <div className="legend-item">
           <span className="legend-color" style={{ backgroundColor: '#dc2626' }} />

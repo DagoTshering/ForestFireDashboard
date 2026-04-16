@@ -5,11 +5,27 @@ const path = require('path');
 const { sequelize, FireData } = require('../models/FireData');
 
 function buildKey(record) {
-  return `${record.latitude},${record.longitude},${record.acq_date},${record.acq_time}`;
+  return `${record.latitude},${record.longitude},${record.acq_date},${record.acq_time},${record.data_source}`;
+}
+
+function deriveDataSourceFromContext(fileName, props) {
+  const name = (fileName || '').toUpperCase();
+  const instrument = (props.INSTRUMENT || '').toString().toUpperCase();
+  const satellite = (props.SATELLITE || '').toString().toUpperCase();
+
+  if (name.includes('MODIS') || instrument === 'MODIS') {
+    return 'MODIS';
+  }
+
+  if (name.includes('J1') || name.includes('J1V') || satellite === 'N20') {
+    return 'VIIRS_J1';
+  }
+
+  return 'VIIRS_N';
 }
 
 async function importAllShapefiles() {
-  console.log('Starting dynamic VIIRS SHP data import...');
+  console.log('Starting dynamic fire SHP data import (VIIRS N + VIIRS J1 + MODIS)...');
   console.log(`Target: PostgreSQL via Sequelize`);
   console.log('');
 
@@ -22,7 +38,7 @@ async function importAllShapefiles() {
 
     console.log('Building existing records cache for duplicate detection...');
     const existingRecords = await FireData.findAll({
-      attributes: ['latitude', 'longitude', 'acq_date', 'acq_time'],
+      attributes: ['latitude', 'longitude', 'acq_date', 'acq_time', 'data_source'],
       raw: true
     });
     const existingKeys = new Set(existingRecords.map(r => buildKey(r)));
@@ -54,24 +70,24 @@ async function importAllShapefiles() {
       const subdirPath = path.join(dataDir, subdir);
       const files = fs.readdirSync(subdirPath);
 
-      const archiveFiles = files.filter(f => f.startsWith('fire_archive') && f.endsWith('.shp'));
+      const fireFiles = files.filter(f => f.startsWith('fire_') && f.endsWith('.shp'));
 
-      if (archiveFiles.length === 0) {
-        console.log(`[${subdir}] No archive shapefile found, skipping.`);
+      if (fireFiles.length === 0) {
+        console.log(`[${subdir}] No fire shapefile found, skipping.`);
         continue;
       }
 
-      for (const archiveFile of archiveFiles) {
-        const baseName = archiveFile.replace('.shp', '');
-        const shpPath = path.join(subdirPath, archiveFile);
+      for (const fireFile of fireFiles) {
+        const baseName = fireFile.replace('.shp', '');
+        const shpPath = path.join(subdirPath, fireFile);
         const dbfPath = path.join(subdirPath, baseName + '.dbf');
 
         if (!fs.existsSync(dbfPath)) {
-          console.log(`[${subdir}] DBF file not found for ${archiveFile}, skipping.`);
+          console.log(`[${subdir}] DBF file not found for ${fireFile}, skipping.`);
           continue;
         }
 
-        console.log(`[${subdir}] Importing ${archiveFile}...`);
+        console.log(`[${subdir}] Importing ${fireFile}...`);
 
         const source = await shapefile.open(shpPath, dbfPath);
 
@@ -84,6 +100,7 @@ async function importAllShapefiles() {
           if (result.done) break;
 
           const props = result.value.properties;
+          const dataSource = deriveDataSourceFromContext(fireFile, props);
 
           const record = {
             latitude: parseFloat(props.LATITUDE),
@@ -99,6 +116,7 @@ async function importAllShapefiles() {
             confidence: parseConfidence(props.CONFIDENCE),
             frp: props.FRP ? parseFloat(props.FRP) : null,
             fire_type: props.TYPE !== undefined ? String(props.TYPE) : null,
+            data_source: dataSource,
             created_at: new Date()
           };
 

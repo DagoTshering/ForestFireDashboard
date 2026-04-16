@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format, parse } from 'date-fns';
 import FireMap from './components/FireMap';
-import { fetchFireData, fetchHottestMonth } from './services/api';
+import { fetchFireData, fetchHottestMonth, fetchSourceCounts } from './services/api';
 import { isWithinBhutanRegion } from './utils/constants';
 import { DatePicker } from './components/ui/date-picker';
 import { DzongkhagSelector } from './components/ui/dzongkhag-selector';
@@ -26,18 +26,24 @@ function App() {
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [days, setDays] = useState(0);
+  const [selectedSource, setSelectedSource] = useState('VIIRS_N');
   const [selectedDzongkhag, setSelectedDzongkhag] = useState(null);
   const [basemap, setBasemap] = useState('street');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [stats, setStats] = useState({ total: 0 });
+  const [sourceCounts, setSourceCounts] = useState({ VIIRS_N: 0, VIIRS_J1: 0, MODIS: 0 });
   const [hottestMonth, setHottestMonth] = useState(null);
 
   useEffect(() => {
     loadFireData();
-  }, [selectedDate, days]);
+  }, [selectedDate, days, selectedSource]);
 
   useEffect(() => {
     loadHottestMonth();
+  }, []);
+
+  useEffect(() => {
+    loadSourceCounts();
   }, []);
 
   const loadHottestMonth = async () => {
@@ -56,7 +62,7 @@ function App() {
     setError(null);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
-      const result = await fetchFireData(dateStr, days);
+      const result = await fetchFireData(dateStr, days, selectedSource);
       if (result.success) {
         const bhutanFires = (result.data || []).filter(f =>
           isWithinBhutanRegion(f.latitude, f.longitude)
@@ -74,6 +80,23 @@ function App() {
       setLoading(false);
     }
   };
+
+  const loadSourceCounts = async () => {
+    try {
+      const result = await fetchSourceCounts();
+      if (result.success && result.data) {
+        setSourceCounts({
+          VIIRS_N: result.data.VIIRS_N || 0,
+          VIIRS_J1: result.data.VIIRS_J1 || 0,
+          MODIS: result.data.MODIS || 0,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load source counts:', err);
+    }
+  };
+
+  const totalSourceCount = (sourceCounts.VIIRS_N || 0) + (sourceCounts.VIIRS_J1 || 0) + (sourceCounts.MODIS || 0);
 
   return (
     <div className="app">
@@ -127,6 +150,19 @@ function App() {
           />
         </div>
         <div className="control-group">
+          <label htmlFor="source">Data Source:</label>
+          <select
+            id="source"
+            value={selectedSource}
+            onChange={(e) => setSelectedSource(e.target.value)}
+          >
+            <option value="VIIRS_N">N (VIIRS) - {sourceCounts.VIIRS_N}</option>
+            <option value="VIIRS_J1">J1 VIIRS C2 - {sourceCounts.VIIRS_J1}</option>
+            <option value="MODIS">MODIS - {sourceCounts.MODIS}</option>
+            <option value="ALL">All Sources - {totalSourceCount}</option>
+          </select>
+        </div>
+        <div className="control-group">
           <label htmlFor="basemap">Map:</label>
           <select
             id="basemap"
@@ -155,6 +191,7 @@ function App() {
             selectedDzongkhag={selectedDzongkhag}
             onDzongkhagClick={setSelectedDzongkhag}
             basemap={basemap}
+            selectedSource={selectedSource}
           />
         )}
       </main>

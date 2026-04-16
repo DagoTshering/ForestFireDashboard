@@ -6,7 +6,7 @@ Real-time fire monitoring system for Bhutan using NASA FIRMS VIIRS satellite dat
 
 - **Real-time Monitoring**: Automatic fire detection updates every 15 minutes via NASA FIRMS VIIRS S-NPP satellite
 - **Historical Data**: Import historical fire data from downloaded NASA FIRMS shapefiles
-- **Interactive Map**: Web-based map visualization using Leaflet and OpenStreetMap
+- **Interactive Map**: Web-based map visualization using OpenLayers and OpenStreetMap
 - **Bhutan Focus**: Filters fire data to Bhutan borders with 10km buffer zone
 - **Data Export**: REST API for accessing fire data programmatically
 
@@ -18,7 +18,7 @@ Real-time fire monitoring system for Bhutan using NASA FIRMS VIIRS satellite dat
 | Database | PostgreSQL (via Docker) |
 | ORM | Sequelize |
 | Frontend | React, Vite |
-| Maps | Leaflet, React-Leaflet |
+| Maps | OpenLayers |
 | Satellite Data | NASA FIRMS VIIRS S-NPP |
 
 ---
